@@ -175,6 +175,11 @@ header h1 {
     color: white;
 }
 
+.btn-edit {
+    background: #722ed1;
+    color: white;
+}
+
 /* 添加账号区域 */
 .add-account-section {
     background: white;
