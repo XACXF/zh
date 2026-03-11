@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>租号管理系统</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>租号管理系统</h1>
+            <span id="currentUserDisplay" style="color: white; margin-right: 10px;"></span>
+            <button class="logout-btn" onclick="logout()">退出登录</button>
+        </header>
+
+        <!-- 添加账号表单 -->
+        <section class="add-account-section">
+            <h2>添加新账号</h2>
+            <form id="accountForm">
+                <div class="form-group">
+                    <label for="accountName">账号名称</label>
+                    <input type="text" id="accountName" required placeholder="请输入账号名称">
+                </div>
+                <div class="form-group">
+                    <label for="phoneNumber">绑定手机</label>
+                    <input type="tel" id="phoneNumber" required placeholder="请输入手机号码">
+                </div>
+                <div class="form-group">
+                    <label for="rentDuration">初始租期（分钟）</label>
+                    <input type="number" id="rentDuration" placeholder="0" min="0" value="0">
+                    <div class="quick-rent-buttons">
+                        <button type="button" onclick="setRentDuration(60)">1小时</button>
+                        <button type="button" onclick="setRentDuration(1440)">1天</button>
+                        <button type="button" onclick="setRentDuration(10080)">1周</button>
+                        <button type="button" onclick="setRentDuration(43200)">1个月</button>
+                        <button type="button" onclick="setRentDuration(525600)">1年</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="autoRent"> 立即出租
+                    </label>
+                </div>
+                <button type="submit" class="btn btn-primary">添加账号</button>
+            </form>
+        </section>
+
+        <!-- 状态筛选 -->
+        <div class="filter-section">
+            <label for="statusFilter">筛选状态：</label>
+            <select id="statusFilter">
+                <option value="all">全部</option>
+                <option value="idle">空闲</option>
+                <option value="rented">出租中</option>
+                <option value="expiring">即将到期</option>
+                <option value="expired">已到期</option>
+            </select>
+        </div>
+
+        <!-- 账号列表 -->
+        <section class="accounts-section">
+            <h2 class="section-title">账号列表 <span class="badge" id="accountCount">0</span></h2>
+            <div id="accountsList"></div>
+        </section>
+
+        <!-- 回收站 -->
+        <section class="recycle-bin-section">
+            <h3>
+                回收站 <span class="badge" id="deletedCount">0</span>
+                <button class="btn btn-small btn-danger" onclick="emptyRecycleBin()" style="margin-left: auto;">清空回收站</button>
+            </h3>
+            <div id="recycleBinList"></div>
+        </section>
+
+        <!-- 数据说明 -->
+        <section class="data-info-section">
+            <h3>数据存储说明</h3>
+            <p>数据都是本地存储，无联网行为，数据请妥善保管</p>
+            <p>数据保存位置：<code id="dataStoragePath"></code></p>
+            <div class="btn-group">
+                <button class="btn btn-small" onclick="exportData()">📤 导出数据</button>
+                <button class="btn btn-small" onclick="importData()">📥 导入数据</button>
+                <input type="file" id="importFile" style="display: none;" accept=".json" onchange="handleImport(event)">
+            </div>
+        </section>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        // 更新账号数量
+        function updateCount() {
+            document.getElementById('accountCount').textContent = accounts.length;
+            document.getElementById('deletedCount').textContent = deletedAccounts.length;
+        }
+
+        // 覆写renderAccounts来更新计数
+        const originalRenderAccounts = renderAccounts;
+        renderAccounts = function() {
+            originalRenderAccounts();
+            updateCount();
+        };
+
+        // 覆写renderRecycleBin来更新计数
+        const originalRenderRecycleBin = renderRecycleBin;
+        renderRecycleBin = function() {
+            originalRenderRecycleBin();
+            updateCount();
+        };
+
+        // 导出数据
+        function exportData() {
+            const currentUser = sessionStorage.getItem('currentUser') || 'default';
+            const data = {
+                user: currentUser,
+                exportTime: new Date().toISOString(),
+                accounts: localStorage.getItem('accounts_' + currentUser),
+                deletedAccounts: localStorage.getItem('deleted_accounts_' + currentUser)
+            };
+
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `租号系统_备份_${currentUser}_${new Date().toISOString().slice(0, 10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showNotification('数据导出成功！', 'success');
+        }
+
+        // 导入数据
+        function importData() {
+            document.getElementById('importFile').click();
+        }
+
+        // 处理导入
+        function handleImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    const currentUser = sessionStorage.getItem('currentUser') || 'default';
+
+                    if (data.accounts) {
+                        localStorage.setItem('accounts_' + currentUser, data.accounts);
+                    }
+                    if (data.deletedAccounts) {
+                        localStorage.setItem('deleted_accounts_' + currentUser, data.deletedAccounts);
+                    }
+
+                    // 重新加载数据
+                    if (typeof loadAccounts === 'function') loadAccounts();
+                    if (typeof loadDeletedAccounts === 'function') loadDeletedAccounts();
+                    if (typeof renderAccounts === 'function') renderAccounts();
+                    if (typeof renderRecycleBin === 'function') renderRecycleBin();
+
+                    showNotification('数据导入成功！', 'success');
+                } catch (err) {
+                    showNotification('数据导入失败，文件格式错误！', 'error');
+                    console.error(err);
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        // 页面加载时检查登录状态
+        checkLogin();
+        displayCurrentUser();
+        displayDataPath();
+    </script>
+</body>
+</html>
