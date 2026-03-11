@@ -220,6 +220,7 @@ function renderAccounts() {
                     ${account.status === 'expired' ? `
                         <button class="btn btn-small btn-rent" onclick="rentAccount(${account.id})">重新出租</button>
                     ` : ''}
+                    <button class="btn btn-small btn-edit" onclick="editAccountName(${account.id})">修改</button>
                     <button class="btn btn-small btn-delete" onclick="deleteAccount(${account.id})">删除</button>
                 </div>
             </div>
@@ -643,6 +644,26 @@ function copyPhone(phone) {
         document.body.removeChild(input);
         showNotification('手机号已复制到剪贴板', 'success');
     });
+}
+
+// 修改账号名称
+function editAccountName(accountId) {
+    const account = accounts.find(a => a.id === accountId);
+    if (!account) return;
+
+    const newName = prompt('请输入新的账号名称:', account.name);
+    if (newName === null) return; // 用户取消
+
+    const trimmedName = newName.trim();
+    if (!trimmedName) {
+        showNotification('账号名称不能为空', 'error');
+        return;
+    }
+
+    account.name = trimmedName;
+    saveAccounts();
+    renderAccounts();
+    showNotification('账号名称已修改', 'success');
 }
 
 // 退出登录
